@@ -7,7 +7,7 @@ export default async function handler(req, res) {
 
   try {
     // Menembak instansi publik Piped API (bebas blokir bot)
-    const response = await fetch(`https://pipedapi.kavin.rocks/streams/${id}`);
+    const response = await fetch(`https://pipedapi.smnz.de/streams/${id}`);
     
     if (!response.ok) {
       return res.status(404).json({ error: 'Gagal mengambil data dari API alternatif.' });
