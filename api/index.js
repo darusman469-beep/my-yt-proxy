@@ -6,31 +6,36 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Menambahkan Headers agar Vercel menyamar sebagai browser Google Chrome asli
     const response = await fetch(`https://www.youtube.com/watch?v=${id}`, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept-Language': 'en-US,en;q=0.9'
+        'Accept-Language': 'en-US,en;q=0.9',
+        // Cookie ini berfungsi untuk mem-bypass halaman "Persetujuan Cookie" otomatis dari YouTube
+        'Cookie': 'CONSENT=YES+cb.20210328-17-p0.en+FX+478' 
       }
     });
     
     const html = await response.text();
 
-    const regex = /ytInitialPlayerResponse\s*=\s*({.+?})\s*;/;
-    const match = html.match(regex);
+    // METODE SNIPER: Langsung mencari link m3u8 tanpa perlu membaca seluruh data JSON
+    const hlsMatch = html.match(/"hlsManifestUrl":"([^"]+)"/);
 
-    if (match && match[1]) {
-      const playerResponse = JSON.parse(match[1]);
-      const hlsUrl = playerResponse?.streamingData?.hlsManifestUrl;
-
-      if (hlsUrl) {
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        return res.redirect(302, hlsUrl);
-      } else {
-        return res.status(404).json({ error: 'HLS tidak ditemukan di data video. Pastikan ini adalah Live Streaming aktif.' });
-      }
+    if (hlsMatch && hlsMatch[1]) {
+      // YouTube menyembunyikan link dengan karakter escape (\/), kita harus membersihkannya
+      const hlsUrl = hlsMatch[1].replace(/\\\//g, '/');
+      
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      // Langsung arahkan pemutar IPTV ke link yang sudah dibersihkan
+      return res.redirect(302, hlsUrl);
     } else {
-      return res.status(500).json({ error: 'Gagal membaca halaman YouTube. Terblokir sistem anti-bot.' });
+      // Jika masih gagal, kita minta script mencari tahu alasan penolakannya dari YouTube
+      const reasonMatch = html.match(/"reason":"([^"]+)"/);
+      const reason = reasonMatch ? reasonMatch[1] : 'Tidak diketahui (mungkin stream sudah berakhir atau dibatasi wilayah).';
+      
+      return res.status(404).json({ 
+        error: 'Gagal mengekstrak link HLS.',
+        alasan_youtube: reason
+      });
     }
   } catch (error) {
     return res.status(500).json({ error: 'Terjadi kesalahan server: ' + error.message });
